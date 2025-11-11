@@ -1,0 +1,64 @@
+[project]
+name = "sync-agentic-tools"
+version = "0.1.1"
+description = "Sync config, rules, workflows, skills and templates across agentic coding tools"
+authors = [{name = "Sam McLeod", email = "sammcj@users.noreply.github.com"}]
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+dependencies = [
+    "pyyaml>=6.0.3",
+    "rich>=14.2.0",
+    "click>=8.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.4",
+]
+
+[project.scripts]
+sync-agentic-tools = "sync_agentic_tools.cli:main"
+
+[build-system]
+requires = ["setuptools>=80.9"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"
+
+[tool.setuptools]
+packages = ["sync_agentic_tools"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+sync_agentic_tools = ["templates/*.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B904",  # raise from exception chaining (stylistic choice)
+    "B007",  # unused loop variable (intentional in some cases)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

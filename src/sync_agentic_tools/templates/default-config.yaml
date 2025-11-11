@@ -1,0 +1,180 @@
+# ~/.sync-agentic-tools.yaml
+settings:
+  # Backup settings
+  backup_retention_days: 90          # Keep backups for 90 days
+  backup_retention_count: 30         # Keep last 30 backups
+  auto_cleanup_backups: true         # Automatically clean old backups
+  compress_old_backups: true         # Compress backups older than 7 days
+  follow_symlinks: false             # Don't follow symbolic links
+  respect_gitignore: true            # Automatically exclude files from .gitignore
+
+  # Safety settings
+  confirm_destructive_source: true    # Ask before overwriting source files
+  confirm_destructive_target: false   # Don't ask before copying to target
+  show_diff_threshold: 1             # Show diff for files larger than 1 lines
+
+  # Behaviour
+  detect_renames: true               # Detect when files are renamed
+  rename_similarity_threshold: 1.0   # Require 100% match for rename detection
+
+# Reusable exclude pattern rulesets
+# Tools can reference these to avoid duplicating common patterns
+exclude_rulesets:
+  common:
+    - "**/.DS_Store"         # Exclude macOS metadata files
+    - "**/.vscode/**"        # Exclude VS Code settings
+    - "debug/**"             # Exclude debug directory
+    - "file-history/**"      # Exclude file history
+    - "session-env/**"       # Exclude session environment
+    - "**/*.log"             # Exclude all log files
+    - "**/*.env"             # Exclude all env files
+    - "**/*.tmp"             # Exclude all tmp files
+    - "**/*.local.*"         # Exclude all local files
+    - "**/temp/**"           # Exclude temp directories
+    - "**/*-backup.*"        # Exclude backup files
+
+  private:
+    - "**/*-private.*"       # Exclude private files
+    - "**/private/**"        # Exclude private directories
+
+# Tools define named applications to manage synchronisation for
+# Propagation rules at the bottom can reference these tools (or use direct file paths)
+
+tools:
+  claude:
+    enabled: true
+    source: ~/.claude
+    target: ~/git/sammcj/agentic-coding/Claude # Target can be any location where you want to centralise your agent configs, rules etc
+
+    include:
+      - "CLAUDE.md"
+      - "skills/**"
+      - "commands/**"
+      - "agents/**"
+      - "settings.json"
+
+    # Reference common rulesets
+    exclude_rulesets:
+      - common
+      - private
+
+    # Additional tool-specific excludes (optional)
+    exclude:
+      - "sessions/**"              # Claude-specific session data
+
+    special_handling:
+      settings.json:
+        mode: extract_keys
+        include_keys:
+          - "permissions"
+
+  cline:
+    enabled: true
+    source: ~/Documents/Cline
+    target: ~/git/sammcj/agentic-coding/Cline
+
+    include:
+      - "Rules/**"
+      - "Workflows/**"
+
+    # Reference common rulesets
+    exclude_rulesets:
+      - common
+
+    # Additional tool-specific excludes (optional)
+    exclude:
+      - "cache/**"                 # Cline-specific cache data
+
+  # Example: Gemini CLI configuration
+  # gemini:
+  #   enabled: false
+  #   source: ~/.gemini
+  #   target: ~/git/sammcj/agentic-coding/Gemini
+  #
+  #   include:
+  #     - "config.yaml"           # Only sync files unique to Gemini
+  #
+  #   # Use common ruleset
+  #   exclude_rulesets:
+  #     - common
+  #
+  #   exclude:
+  #     - "**/logs/**"
+  #     - "GEMINI.md"             # Exclude - auto-propagated from Claude
+
+
+# Propagation rules to copy files between tools with transformations
+# Supports two modes:
+#   1. Tool-based: Uses tool definitions, always syncs target directories
+#   2. Absolute paths: Direct file paths for source-to-source copies
+#
+# IMPORTANT: If propagating to source directories using absolute paths,
+# exclude those files from sync to prevent conflicts:
+#   exclude:
+#     - "GEMINI.md"  # Auto-propagated from Claude
+propagate:
+  # Tool-based propagation (target → target)
+  - source_tool: claude
+    source_file: CLAUDE.md
+    targets:
+      - tool: cline
+        target_file: rules/CLINE_RULES.md
+        transforms:
+          - type: sed
+            pattern: 's/Claude/Cline/g'
+          - type: remove_xml_sections
+            sections:
+              - "CLAUDE_PARALLEL_TASKS"
+
+  # Direct propagation (no tool definition needed)
+  - source_path: ~/.claude/CLAUDE.md
+    targets:
+      - dest_path: ~/.gemini/GEMINI.md
+        transforms:
+          - type: sed
+            pattern: 's/Claude Code/Gemini CLI/g'
+          - type: sed
+            pattern: 's/Claude/Gemini/g'
+
+      - dest_path: ~/.codex/AGENTS.md
+        transforms:
+          - type: sed
+            pattern: 's/Claude Code/Codex/g'
+          - type: sed
+            pattern: 's/Claude/Codex/g'
+
+      - dest_path: ~/Documents/Cline/Rules/CLINE_RULES.md
+        transforms:
+          - type: sed
+            pattern: 's/Claude/Cline/g'
+          - type: remove_xml_sections
+            sections:
+              - "CLAUDE_PARALLEL_TASKS"
+
+  # Example: Source→Source propagation using absolute paths
+  # (For direct local-to-local copies without going through targets)
+  # - source_path: ~/.claude/CLAUDE.md
+  #   targets:
+  #     - dest_path: ~/.gemini/GEMINI.md
+  #       transforms:
+  #         - type: sed
+  #           pattern: 's/Claude Code/Gemini CLI/g'
+  #
+  #     - dest_path: ~/.codex/AGENTS.md
+  #       transforms:
+  #         - type: sed
+  #           pattern: 's/Claude Code/Codex/g'
+
+
+  # Example: Mixed - tool-based + absolute paths
+  # - source_tool: claude
+  #   source_file: skills/shell-scripting.md
+  #   targets:
+  #     - tool: cline
+  #       target_file: Rules/shell-scripting.md  # Tool-based (target dir)
+  #
+  #     - dest_path: ~/.codex/shell.md          # Absolute path (direct)
+  #       transforms:
+  #         - type: sed
+  #           pattern: 's/Claude/Codex/g'
+
