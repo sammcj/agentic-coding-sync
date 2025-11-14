@@ -1,8 +1,8 @@
-# Agentic Sync
+# Sync Agentic Tools
 
 Sync config, rules, workflows, skills and templates across agentic coding tools (Claude Code, Cline, etc.)
 
-- [Agentic Sync](#agentic-sync)
+- [Sync Agentic Tools](#sync-agentic-tools)
   - [Features](#features)
   - [Installation](#installation)
   - [Quick Start](#quick-start)
