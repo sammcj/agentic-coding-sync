@@ -158,6 +158,51 @@ class SyncEngine:
         # Execute sync
         return self._execute_sync(tool, plan, state, state_manager, auto_resolve)
 
+    def _get_propagation_managed_paths(self, tool: ToolConfig) -> list[str]:
+        """
+        Get list of paths that are managed by propagation for this tool.
+
+        These paths should be excluded from sync to prevent conflicts.
+
+        Returns:
+            List of relative path patterns to exclude
+        """
+        excluded_paths = []
+
+        for rule in self.config.propagate:
+            for target in rule.targets:
+                # Check if this target points to the current tool
+                if target.dest_path:
+                    # Absolute path - check if it's within tool's source or target
+                    dest_path = Path(target.dest_path).expanduser()
+
+                    # Check if dest is in this tool's source directory
+                    try:
+                        rel_path = str(dest_path.relative_to(tool.source))
+                        excluded_paths.append(rel_path)
+                        continue
+                    except ValueError:
+                        pass
+
+                    # Check if dest is in this tool's target directory
+                    try:
+                        rel_path = str(dest_path.relative_to(tool.target))
+                        excluded_paths.append(rel_path)
+                    except ValueError:
+                        pass
+
+                elif target.tool == tool.name:
+                    # Tool-relative target pointing to this tool
+                    if target.target_file:
+                        excluded_paths.append(target.target_file)
+
+        if excluded_paths:
+            show_info(
+                f"Auto-excluding propagation-managed files: {', '.join(excluded_paths)}"
+            )
+
+        return excluded_paths
+
     def _create_sync_plan(
         self, tool: ToolConfig, direction: SyncDirection, state: SyncState
     ) -> SyncPlan:
@@ -173,18 +218,21 @@ class SyncEngine:
             confirmed_deletions=set(),
         )
 
+        # Build list of propagation-managed paths to exclude
+        propagation_exclude = self._get_propagation_managed_paths(tool)
+
         # Find files in source and target
         source_files = find_files(
             tool.source,
             tool.include,
-            tool.exclude,
+            list(tool.exclude) + propagation_exclude,
             self.config.settings.follow_symlinks,
             self.config.settings.respect_gitignore,
         )
 
         # If not following symlinks, find which source paths are symlinks
         # and exclude their target equivalents from scanning
-        target_exclude = list(tool.exclude)
+        target_exclude = list(tool.exclude) + propagation_exclude
         if not self.config.settings.follow_symlinks:
             # Find all symlinks in source that match include patterns
             from .utils import matches_patterns
@@ -575,9 +623,51 @@ class SyncEngine:
                         if choice == "delete":
                             confirmed_deletions.append((path, location))
                             state.record_deletion(f"{tool.name}/{relpath}", "unknown", "confirmed")
+                        elif choice == "sync_back":
+                            # Sync file back to the location it was deleted from
+                            if location == "source":
+                                # Deleted from source, sync back from target
+                                source_dest = tool.source / relpath
+                                plan.files_to_copy.append((path, source_dest))
+                                show_info(f"Will sync back to source: {relpath}")
+                            else:
+                                # Deleted from target, sync back from source
+                                target_dest = tool.target / relpath
+                                source_path = tool.source / relpath
+                                if source_path.exists():
+                                    plan.files_to_copy.append((source_path, target_dest))
+                                    show_info(f"Will sync back to target: {relpath}")
+                        elif choice == "view":
+                            # Open file in editor and ask again
+                            import os
+                            import subprocess
+
+                            editor = os.environ.get("EDITOR", "less")
+                            try:
+                                subprocess.run([editor, str(path)], check=False)
+                            except Exception as e:
+                                show_error(f"Failed to open editor: {e}")
+
+                            # Ask again after viewing
+                            choice = show_deletion_prompt(
+                                relpath,
+                                "target" if location == "source" else "source",
+                                location,
+                            )
+                            if choice == "delete":
+                                confirmed_deletions.append((path, location))
+                                state.record_deletion(f"{tool.name}/{relpath}", "unknown", "confirmed")
+                            elif choice == "sync_back":
+                                if location == "source":
+                                    source_dest = tool.source / relpath
+                                    plan.files_to_copy.append((path, source_dest))
+                                else:
+                                    target_dest = tool.target / relpath
+                                    source_path = tool.source / relpath
+                                    if source_path.exists():
+                                        plan.files_to_copy.append((source_path, target_dest))
                         elif choice == "skip":
                             show_info(f"Skipped deletion of {relpath}")
-                        # else keep_both: do nothing
                     else:
                         # Auto-delete (no confirmation required)
                         confirmed_deletions.append((path, location))

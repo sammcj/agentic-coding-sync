@@ -282,17 +282,22 @@ def show_deletion_prompt(file_path: str, source: str, dest: str) -> str:
         dest: Destination location name
 
     Returns:
-        User choice: "delete", "skip", "keep_both"
+        User choice: "delete", "skip", "sync_back"
     """
-    console.print(f"\n[bold yellow]DELETION:[/bold yellow] {file_path}")
-    console.print(f"  Deleted from {source}")
-    console.print(f"  Delete from {dest}?")
+    console.print(f"\n[bold yellow]DELETION from {source}:[/bold yellow] {file_path}")
+    console.print(f"  File no longer exists in {source}")
+    console.print(f"  Still exists in {dest}")
     console.print()
 
-    choices = ["y", "n", "s"]
-    choice = prompt_user_choice("[Y]es / [N]o, keep it / [S]kip", choices)
+    choices = ["d", "s", "v", "k"]
+    choice = prompt_user_choice(
+        "[D]elete from {dest} / [S]ync back to {source} / [V]iew / S[k]ip".format(
+            dest=dest, source=source
+        ),
+        choices,
+    )
 
-    mapping = {"y": "delete", "n": "keep_both", "s": "skip"}
+    mapping = {"d": "delete", "s": "sync_back", "v": "view", "k": "skip"}
 
     return mapping[choice]
 

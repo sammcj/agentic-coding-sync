@@ -384,8 +384,8 @@ def propagate_file(
             show_error("Target must specify either dest_path or (tool + target_file)")
             continue
 
-        # Use relative path for single file (just the filename)
-        relative_path = Path(source_path.name)
+        # Use target filename (not source filename)
+        relative_path = Path(target_path.name)
         propagate_single_file(source_path, target_path.parent, relative_path, content, target.transforms, dry_run)
 
 
