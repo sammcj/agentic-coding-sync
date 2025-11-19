@@ -116,6 +116,10 @@ propagate:
           - type: remove_xml_sections
             sections:
               - "CLAUDE_PARALLEL_TASKS"
+              - "SUBAGENTS"
+              - "SUB_AGENT_COORDINATION"
+              - "CLAUDE_CODE"
+              - "CLAUDE_FEATURES"
 
   # Direct propagation (no tool definition needed)
   - source_path: ~/.claude/CLAUDE.md
@@ -141,6 +145,10 @@ propagate:
           - type: remove_xml_sections
             sections:
               - "CLAUDE_PARALLEL_TASKS"
+              - "SUBAGENTS"
+              - "SUB_AGENT_COORDINATION"
+              - "CLAUDE_CODE"
+              - "CLAUDE_FEATURES"
 
   - source_path: ~/.claude/commands
     exclude:
