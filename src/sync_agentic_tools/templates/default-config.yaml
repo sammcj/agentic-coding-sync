@@ -32,7 +32,8 @@ exclude_rulesets:
     - "**/*.local.*"         # Exclude all local files
     - "**/temp/**"           # Exclude temp directories
     - "**/*-backup.*"        # Exclude backup files
-    - "**/.git"              # Exclude git directories
+    - "**/.git"
+    - "**/hooks/approve-compound-commands" # go binary
 
   private:
     - "skills/private-*/**"  # Exclude private skills
@@ -49,8 +50,11 @@ tools:
     include:
       - "CLAUDE.md"
       - "skills/**"
+      - "skills_disabled/**"
       - "commands/**"
       - "agents/**"
+      - "hooks/**"
+      - "agents_disabled/**"
       - "settings.json"
 
     # Reference common rulesets
@@ -63,6 +67,7 @@ tools:
         mode: extract_keys
         include_keys:
           - "permissions"
+          - "hooks"
 
   cline:
     enabled: true
@@ -116,11 +121,13 @@ propagate:
             pattern: 's/Claude/Cline/g'
           - type: remove_xml_sections
             sections:
-              - "CLAUDE_PARALLEL_TASKS"
-              - "SUBAGENTS"
-              - "SUB_AGENT_COORDINATION"
+              - "CLAUDE"
               - "CLAUDE_CODE"
+              - "CLAUDE_SKILLS"
               - "CLAUDE_FEATURES"
+              - "CLAUDE_COMMANDS"
+              - "CLAUDE_PARALLEL_TASKS"
+              - "SUB_AGENT_COORDINATION"
 
   # Direct propagation (no tool definition needed)
   - source_path: ~/.claude/CLAUDE.md
@@ -145,11 +152,13 @@ propagate:
             pattern: 's/Claude/Cline/g'
           - type: remove_xml_sections
             sections:
-              - "CLAUDE_PARALLEL_TASKS"
-              - "SUBAGENTS"
-              - "SUB_AGENT_COORDINATION"
+              - "CLAUDE"
               - "CLAUDE_CODE"
+              - "CLAUDE_SKILLS"
               - "CLAUDE_FEATURES"
+              - "CLAUDE_COMMANDS"
+              - "CLAUDE_PARALLEL_TASKS"
+              - "SUB_AGENT_COORDINATION"
 
   - source_path: ~/.claude/commands
     exclude:
