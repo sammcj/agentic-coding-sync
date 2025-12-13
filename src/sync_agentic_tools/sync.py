@@ -59,6 +59,14 @@ class SyncEngine:
         self.dry_run = dry_run
         self.backup_manager = BackupManager()
 
+    def _get_special_handling_keys(self, tool: ToolConfig, filename: str) -> list[str] | None:
+        """Get the special handling keys for a file, if any."""
+        if filename in tool.special_handling:
+            handling = tool.special_handling[filename]
+            if handling.include_keys:
+                return handling.include_keys
+        return None
+
     def _files_are_identical_with_special_handling(
         self, tool: ToolConfig, source_path: Path, target_path: Path
     ) -> bool:
@@ -435,6 +443,7 @@ class SyncEngine:
 
                 for source_path, target_path in plan.reverse_suggestions:
                     relpath = str(source_path.relative_to(tool.source))
+                    special_keys = self._get_special_handling_keys(tool, source_path.name)
 
                     from datetime import datetime
 
@@ -444,7 +453,7 @@ class SyncEngine:
                     source_info = f"modified {datetime.fromtimestamp(source_mtime).strftime('%Y-%m-%d %H:%M:%S')}"
                     target_info = f"modified {datetime.fromtimestamp(target_mtime).strftime('%Y-%m-%d %H:%M:%S')}"
 
-                    choice = show_reverse_sync_prompt(relpath, source_info, target_info)
+                    choice = show_reverse_sync_prompt(relpath, source_info, target_info, special_keys)
 
                     if choice == "diff":
                         # Show diff and ask again
@@ -452,7 +461,7 @@ class SyncEngine:
                         from .ui import show_diff
 
                         show_diff(relpath, diff_lines, "source", "target")
-                        choice = show_reverse_sync_prompt(relpath, source_info, target_info)
+                        choice = show_reverse_sync_prompt(relpath, source_info, target_info, special_keys)
 
                     if choice == "pull":
                         # Pull from target to source
@@ -473,6 +482,7 @@ class SyncEngine:
 
                 for source_path, target_path in plan.conflicts:
                     relpath = str(source_path.relative_to(tool.source))
+                    special_keys = self._get_special_handling_keys(tool, source_path.name)
 
                     source_info = f"modified {source_path.stat().st_mtime}"
                     target_info = f"modified {target_path.stat().st_mtime}"
@@ -486,7 +496,7 @@ class SyncEngine:
                             choice = "use_target"
                             show_info(f"Auto: Using target (newer) for {relpath}")
                     else:
-                        choice = show_conflict_resolution_prompt(relpath, source_info, target_info)
+                        choice = show_conflict_resolution_prompt(relpath, source_info, target_info, special_keys)
 
                     if choice == "diff":
                         # Show diff and ask again
@@ -494,7 +504,7 @@ class SyncEngine:
                         from .ui import show_diff
 
                         show_diff(relpath, diff_lines, "source", "target")
-                        choice = show_conflict_resolution_prompt(relpath, source_info, target_info)
+                        choice = show_conflict_resolution_prompt(relpath, source_info, target_info, special_keys)
 
                     if choice == "keep_source":
                         plan.files_to_copy.append((source_path, target_path))
@@ -704,7 +714,13 @@ class SyncEngine:
                         and not auto_resolve
                     ):
                         relpath = str(dest.relative_to(tool.source))
-                        if not confirm_action(f"Overwrite source file {relpath}?"):
+                        special_keys = self._get_special_handling_keys(tool, source.name)
+                        if special_keys:
+                            keys_str = ", ".join(special_keys)
+                            prompt_msg = f"Update sections ({keys_str}) in source file {relpath}?"
+                        else:
+                            prompt_msg = f"Overwrite source file {relpath}?"
+                        if not confirm_action(prompt_msg):
                             show_info(f"Skipped: {relpath}")
                             continue
 
@@ -712,7 +728,8 @@ class SyncEngine:
                     source_name = source.name
                     if source_name in tool.special_handling:
                         handling = tool.special_handling[source_name]
-                        show_info(f"Applying special handling for {source_name}")
+                        keys_str = ", ".join(handling.include_keys) if handling.include_keys else "all"
+                        show_info(f"Partial sync for {source_name} - updating sections: {keys_str}")
 
                         process_special_file(
                             source,
@@ -781,6 +798,9 @@ class SyncEngine:
             else:
                 relpath = str(source.relative_to(plan.tool.target))
 
+            # Get special handling keys if applicable
+            special_keys = self._get_special_handling_keys(plan.tool, source.name)
+
             # Determine change type
             if dest.exists():
                 change_type = ChangeType.MODIFIED
@@ -789,7 +809,7 @@ class SyncEngine:
                 change_type = ChangeType.NEW
                 diff_stats = None
 
-            changes.append(FileChange(relpath, change_type, diff_stats))
+            changes.append(FileChange(relpath, change_type, diff_stats, special_handling_keys=special_keys))
 
         for path, _ in plan.files_to_delete:
             # Determine relative path
@@ -802,10 +822,12 @@ class SyncEngine:
 
         for source, target in plan.conflicts:
             relpath = str(source.relative_to(plan.tool.source))
-            changes.append(FileChange(relpath, ChangeType.CONFLICT))
+            special_keys = self._get_special_handling_keys(plan.tool, source.name)
+            changes.append(FileChange(relpath, ChangeType.CONFLICT, special_handling_keys=special_keys))
 
         for source, target in plan.reverse_suggestions:
             relpath = str(source.relative_to(plan.tool.source))
+            special_keys = self._get_special_handling_keys(plan.tool, source.name)
             diff_stats = count_diff_lines(source, target)
             changes.append(
                 FileChange(
@@ -813,6 +835,7 @@ class SyncEngine:
                     ChangeType.MODIFIED,
                     diff_stats,
                     warnings=["Target is newer than source"],
+                    special_handling_keys=special_keys,
                 )
             )
 

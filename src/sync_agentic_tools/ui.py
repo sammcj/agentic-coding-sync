@@ -32,11 +32,13 @@ class FileChange:
         change_type: ChangeType,
         diff_stats: DiffStats | None = None,
         warnings: list[str] | None = None,
+        special_handling_keys: list[str] | None = None,
     ):
         self.relative_path = relative_path
         self.change_type = change_type
         self.diff_stats = diff_stats
         self.warnings = warnings or []
+        self.special_handling_keys = special_handling_keys  # Keys being synced for partial files
 
 
 def show_summary(
@@ -87,7 +89,11 @@ def show_summary(
         for i, change in enumerate(modified, 1):
             stats_str = change.diff_stats.change_summary if change.diff_stats else "unknown"
             warning_marker = " ⚠" if change.warnings else ""
-            table.add_row(f"[{i}] {change.relative_path}{warning_marker}", "modified", stats_str)
+            partial_marker = ""
+            if change.special_handling_keys:
+                keys_str = ", ".join(change.special_handling_keys)
+                partial_marker = f" [dim](partial: {keys_str})[/dim]"
+            table.add_row(f"[{i}] {change.relative_path}{warning_marker}{partial_marker}", "modified", stats_str)
 
     # Add new files
     if new:
@@ -95,7 +101,11 @@ def show_summary(
         table.add_row("[bold]New Files[/bold]", "", "")
         for i, change in enumerate(new, len(modified) + 1):
             warning_marker = " ⚠" if change.warnings else ""
-            table.add_row(f"[{i}] {change.relative_path}{warning_marker}", "new", "(new)")
+            partial_marker = ""
+            if change.special_handling_keys:
+                keys_str = ", ".join(change.special_handling_keys)
+                partial_marker = f" [dim](partial: {keys_str})[/dim]"
+            table.add_row(f"[{i}] {change.relative_path}{warning_marker}{partial_marker}", "new", "(new)")
 
     # Add deleted files
     if deleted:
@@ -109,7 +119,11 @@ def show_summary(
         table.add_section()
         table.add_row("[bold red]Conflicts[/bold red]", "", "")
         for i, change in enumerate(conflicts, len(modified) + len(new) + len(deleted) + 1):
-            table.add_row(f"[{i}] {change.relative_path}", "[red]conflict[/red]", "")
+            partial_marker = ""
+            if change.special_handling_keys:
+                keys_str = ", ".join(change.special_handling_keys)
+                partial_marker = f" [dim](partial: {keys_str})[/dim]"
+            table.add_row(f"[{i}] {change.relative_path}{partial_marker}", "[red]conflict[/red]", "")
 
     # Add orphaned files
     if orphaned:
@@ -238,7 +252,12 @@ def show_info(message: str) -> None:
     console.print(f"[blue]ℹ[/blue] {message}")
 
 
-def show_conflict_resolution_prompt(file_path: str, source_info: str, target_info: str) -> str:
+def show_conflict_resolution_prompt(
+    file_path: str,
+    source_info: str,
+    target_info: str,
+    special_handling_keys: list[str] | None = None,
+) -> str:
     """
     Show conflict resolution prompt.
 
@@ -246,11 +265,15 @@ def show_conflict_resolution_prompt(file_path: str, source_info: str, target_inf
         file_path: Path to conflicting file
         source_info: Info about source version
         target_info: Info about target version
+        special_handling_keys: Keys being synced for partial files
 
     Returns:
         User choice: "keep_source", "use_target", "diff", "skip"
     """
     console.print(f"\n[bold red]CONFLICT:[/bold red] {file_path}")
+    if special_handling_keys:
+        keys_str = ", ".join(special_handling_keys)
+        console.print(f"  [cyan]Partial sync - only these sections will be updated: {keys_str}[/cyan]")
     console.print(f"  Source: {source_info}")
     console.print(f"  Target: {target_info}")
     console.print()
@@ -325,7 +348,12 @@ def show_rename_prompt(old_path: str, new_path: str, dest: str) -> str:
     return mapping[choice]
 
 
-def show_reverse_sync_prompt(file_path: str, source_info: str, target_info: str) -> str:
+def show_reverse_sync_prompt(
+    file_path: str,
+    source_info: str,
+    target_info: str,
+    special_handling_keys: list[str] | None = None,
+) -> str:
     """
     Show reverse sync suggestion prompt when target is newer.
 
@@ -333,11 +361,16 @@ def show_reverse_sync_prompt(file_path: str, source_info: str, target_info: str)
         file_path: Path to file
         source_info: Info about source version (timestamp)
         target_info: Info about target version (timestamp)
+        special_handling_keys: Keys being synced for partial files
 
     Returns:
         User choice: "pull", "push_anyway", "diff", "skip"
     """
     console.print(f"\n[bold yellow]TARGET NEWER:[/bold yellow] {file_path}")
+    if special_handling_keys:
+        keys_str = ", ".join(special_handling_keys)
+        console.print(f"  [cyan]Partial sync - only these sections will be updated: {keys_str}[/cyan]")
+        console.print("  [dim]Other sections in the destination file will be preserved[/dim]")
     console.print(f"  Source: {source_info}")
     console.print(f"  Target: {target_info} (newer)")
     console.print("\n[yellow]The target file is newer than the source.[/yellow]")
